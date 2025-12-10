@@ -1,0 +1,81 @@
+# simple Image Segmentation with Pytorch
+
+# Transform image for model
+def preprocess(image):
+    transform = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225]),
+    ])
+    return transform(image).unsqueeze(0)  # Add batch dimension
+
+# Convert segmentation output to colored mask
+def decode_segmap(mask):
+    # Define simple color palette (COCO has 21 classes in DeepLab)
+    label_colors = np.array([
+        (0, 0, 0),       # background
+        (128, 0, 0),     # aeroplane
+        (0, 128, 0),     # bicycle
+        (128, 128, 0),   # bird
+        (0, 0, 128),     # boat
+        (128, 0, 128),   # bottle
+        (0, 128, 128),   # bus
+        (128, 128, 128), # car
+        (64, 0, 0),      # cat
+        (192, 0, 0),     # chair
+        (64, 128, 0),    # cow
+        (192, 128, 0),   # dining table
+        (64, 0, 128),    # dog
+        (192, 128, 0),   # horse
+        (64, 128, 128),  # motorbike
+        (192, 128, 128), # person
+        (0, 64, 0),      # potted plant
+        (128, 64, 0),    # sheep
+        (0, 192, 0),     # sofa
+        (128, 192, 0),   # train
+        (0, 64, 128),    # tv/monitor
+    ])
+
+    r = np.zeros_like(mask).astype(np.uint8)
+    g = np.zeros_like(mask).astype(np.uint8)
+    b = np.zeros_like(mask).astype(np.uint8)
+
+    for l in range(0, len(label_colors)):
+        idx = mask == l
+        r[idx] = label_colors[l, 0]
+        g[idx] = label_colors[l, 1]
+        b[idx] = label_colors[l, 2]
+
+    rgb = np.stack([r, g, b], axis=2)
+    return rgb
+
+# Main segmentation function
+def segment_image(image_path_or_url):
+    image = load_image(image_path_or_url)
+    input_tensor = preprocess(image)
+
+    # Load pre-trained DeepLabV3 model
+    model = torchvision.models.segmentation.deeplabv3_resnet101(pretrained=True)
+    model.eval()
+
+    with torch.no_grad():
+        output = model(input_tensor)['out'][0]
+    output_predictions = output.argmax(0).byte().cpu().numpy()
+
+    # Decode the segmentation map
+    segmented_image = decode_segmap(output_predictions)
+
+    # Show original and segmented image
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    axs[0].imshow(image)
+    axs[0].set_title("Original Image")
+    axs[0].axis("off")
+
+    axs[1].imshow(segmented_image)
+    axs[1].set_title("Segmented Output")
+    axs[1].axis("off")
+
+    plt.show()
+
+
+segment_image("lion_hunts_zebra.jpg")
